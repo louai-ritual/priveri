@@ -6,9 +6,9 @@ from typing import Any, Dict, List, Optional
 import torch
 
 
-class TrapTokenAugmenter:
+class SentinelAugmenter:
     """
-    Sentinel-mode augmenter (adapted from the research prototype in `context/framework.py`).
+    Sentinel-mode augmenter.
 
     One sentinel group of size K. The K sentinel tokens can appear anywhere in the prompt
     (not necessarily consecutive).
@@ -432,7 +432,7 @@ def build_sentinel_cache(
     model = AutoModelForCausalLM.from_pretrained(model_name_or_path).to(device)
     tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, use_fast=False)
 
-    augmenter = TrapTokenAugmenter(model, tokenizer, device=device)
+    augmenter = SentinelAugmenter(model, tokenizer, device=device)
     try:
         print(
             f"[Cache] Generating {num_augmentations} augmentations (K={group_k}) "
