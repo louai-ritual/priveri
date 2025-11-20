@@ -1,3 +1,5 @@
+import time
+
 import crypten
 import torch
 from transformers import AutoConfig, AutoTokenizer, AutoModelForCausalLM
@@ -111,7 +113,7 @@ def set_module_by_name(model, module_name, new_module):
 
 def generate(model, tokenizer, prompt, max_new_tokens=10, device="cuda"):
     """
-    Plain CrypTen-based greedy generation *without* sentinel traps / verification.
+    Plain CrypTen-based greedy generation *without* sentinel tokens / verification.
 
     This is kept as a simple baseline. For per-token, cache-based verification,
     use `generate_with_sentinels_and_verification`.
@@ -119,6 +121,7 @@ def generate(model, tokenizer, prompt, max_new_tokens=10, device="cuda"):
     input_ids = tokenizer.encode(prompt)
     prompt_length = len(input_ids)  # in tokens
 
+    t0 = time.time()
     with crypten.no_grad():
         for _ in range(max_new_tokens):
             one_hot_input_ids = torch.nn.functional.one_hot(
@@ -135,7 +138,12 @@ def generate(model, tokenizer, prompt, max_new_tokens=10, device="cuda"):
 
             if generated_token == tokenizer.eos_token_id:
                 break
+    t1 = time.time()
 
+    print(
+        f"[Timing] encrypted_generation_seconds={t1 - t0:.3f}, "
+        f"tokens_generated={len(input_ids) - prompt_length}"
+    )
     return tokenizer.decode(input_ids[prompt_length:])
 
 
@@ -207,6 +215,7 @@ def generate_with_sentinels_and_verification(
                 is_sentinel[idx] = True
 
         generated_ids = []
+        verification_time = 0.0
 
         with crypten.no_grad():
             for _ in range(max_new_tokens):
@@ -241,11 +250,12 @@ def generate_with_sentinels_and_verification(
                     if hasattr(m, "custom_attn_mask"):
                         delattr(m, "custom_attn_mask")
 
-                # Extract sentinel-block logits (K,V) in fixed group order.
+                # Extract sentinel-block logits (K,V) in fixed group order
+                # and verify them against the cache.
+                step_start = time.time()
                 block = logits[0, sentinel_positions, :]  # (K,V)
                 candidate = block.detach().cpu().numpy().reshape(1, -1)
 
-                # Verify this step against the cache.
                 A, B = ensure_min_dim(cache_array, candidate)
                 (_, _), score = find_best_with_numpy_chunked(
                     A, B, metric=metric, a_chunk=8, b_chunk=1024
@@ -255,6 +265,8 @@ def generate_with_sentinels_and_verification(
                     matched = score >= threshold
                 else:
                     matched = score <= threshold
+
+                verification_time += time.time() - step_start
 
                 if not matched:
                     raise RuntimeError(
@@ -270,6 +282,8 @@ def generate_with_sentinels_and_verification(
                 if next_id == tokenizer.eos_token_id:
                     break
 
+        # Report cumulative verification time and return the generated text.
+        print(f"[Timing] online_verification_seconds={verification_time:.3f}")
         # Only return the newly generated tokens (excluding the base prompt).
         return tokenizer.decode(generated_ids)
 

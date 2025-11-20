@@ -1,6 +1,7 @@
 import random
 import copy
 import types
+import time
 from typing import Any, Dict, List, Optional
 
 import torch
@@ -434,6 +435,7 @@ def build_sentinel_cache(
 
     augmenter = SentinelAugmenter(model, tokenizer, device=device)
     try:
+        t0 = time.time()
         print(
             f"[Cache] Generating {num_augmentations} augmentations (K={group_k}) "
             f"for prompt: {prompt!r}"
@@ -446,7 +448,10 @@ def build_sentinel_cache(
         )
         extra_meta = {"prompt": prompt, "group_k": group_k}
         augmenter.save_cache(cache_path, dtype="float16", extra_meta=extra_meta)
+        t1 = time.time()
         print(f"[Cache] Saved sentinel cache to: {cache_path}")
+        print(f"[Cache] Total construction time: {t1 - t0:.2f}s "
+              f"({num_augmentations / max(t1 - t0, 1e-6):.1f} augmentations/s)")
     finally:
         augmenter.restore()
 

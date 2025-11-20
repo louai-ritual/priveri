@@ -1,5 +1,6 @@
 import os
 import argparse
+import time
 
 import crypten
 
@@ -181,6 +182,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def run_construct_cache(args: argparse.Namespace) -> None:
+    start = time.time()
     build_sentinel_cache(
         model_name_or_path=args.model,
         prompt=args.prompt,
@@ -189,6 +191,8 @@ def run_construct_cache(args: argparse.Namespace) -> None:
         cache_path=args.cache_path,
         device=args.device,
     )
+    elapsed = time.time() - start
+    print(f"[Timing] cache_construction_seconds={elapsed:.3f}")
 
 
 def _init_crypten_world(num_parties: int, rank: int) -> None:
@@ -211,6 +215,8 @@ def _init_crypten_world(num_parties: int, rank: int) -> None:
 
 def run_generate(args: argparse.Namespace) -> None:
     _init_crypten_world(num_parties=args.num_parties, rank=args.rank)
+
+    start = time.time()
 
     model, tokenizer = load_model(args.model, check_weights=True)
     if args.device == "cuda":
@@ -235,10 +241,13 @@ def run_generate(args: argparse.Namespace) -> None:
             max_new_tokens=args.max_new_tokens,
             device=args.device,
         )
+    elapsed = time.time() - start
+    print(f"[Timing] e2e_generation_seconds={elapsed:.3f}")
     print(response)
 
 
 def run_verify(args: argparse.Namespace) -> None:
+    start = time.time()
     matched, details = verify_with_cache(
         cache_path=args.cache_path,
         candidate_path=args.candidate_path,
@@ -247,6 +256,8 @@ def run_verify(args: argparse.Namespace) -> None:
     )
     print(f"matched={matched}")
     print(f"details={details}")
+    elapsed = time.time() - start
+    print(f"[Timing] verification_seconds={elapsed:.3f}")
 
 
 def main():
