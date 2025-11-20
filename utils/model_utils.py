@@ -5,7 +5,7 @@ from models.modeling_gemma2 import Gemma2ForCausalLM
 from models.modeling_llama import LlamaForCausalLM
 from models.modeling_qwen2 import Qwen2ForCausalLM
 from models.modeling_mistral import MistralForCausalLM
-from utils.sentinel_cache import TrapTokenAugmenter
+from utils.sentinel_cache import SentinelAugmenter
 from utils.verification import load_array, ensure_min_dim, find_best_with_numpy_chunked
 
 
@@ -183,7 +183,7 @@ def generate_with_sentinels_and_verification(
     # Build an augmenter around the CrypTen model so that we can:
     #   - Reuse sentinel IDs from the cache.
     #   - Rebuild square masks for the current sequence length.
-    augmenter = TrapTokenAugmenter(model, tokenizer, device=device)
+    augmenter = SentinelAugmenter(model, tokenizer, device=device)
     vocab_size = int(getattr(model.config, "vocab_size", len(tokenizer)))
 
     try:
